@@ -1,0 +1,32 @@
+# The repo carries ONLY: code/tooling, docs, and the publishable website
+# (docs/index.html + DZI pyramid — the pyramid's top level IS the full map).
+# Everything else is local working state, regenerable or archival.
+
+# secrets
+.env
+
+# environment
+.venv/
+__pycache__/
+*.egg-info/
+
+# local working state (the map is preserved in docs/map_files)
+cities/*/tile_cache/
+cities/*/map_tiles/
+cities/*/render_tiles/
+cities/*/manifests/
+cities/*/water.json
+cities/*/quadrants.sqlite
+cities/*/archive/
+cities/api_budget.sqlite
+
+# regenerable debug artifacts (keep the small hub/viewer html)
+debug/renders/
+debug/infill/
+debug/repair/
+debug/map/
+debug/tests/*.png
+debug/tests/index.html
+
+# raw web-app outputs
+style_refs/

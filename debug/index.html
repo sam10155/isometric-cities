@@ -1,0 +1,59 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iso-map — Toronto</title>
+<style>
+  body { font-family: sans-serif; background: #fafafa; margin: 2em auto;
+         max-width: 62em; padding: 0 1em; color: #222; }
+  h1 { font-size: 1.4em; }
+  h2 { font-size: 1.1em; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+  img { max-width: 100%; border: 1px solid #ddd; background: #fff; padding: 4px; }
+  .card { background: #fff; border: 1px solid #ddd; border-radius: 8px;
+          padding: 1em 1.2em; margin: 1em 0; }
+  .action { border-left: 4px solid #2e5cff; }
+  code { background: #eef2f7; padding: 1px 5px; border-radius: 3px; }
+  ol { line-height: 1.7; }
+  .muted { color: #667; font-size: .9em; }
+</style>
+
+<h1>🗺️ iso-map — Isometric Pixel-Art Toronto</h1>
+<p><b><a href="viewer/">Open the deep-zoom viewer</a></b> — pan/zoom the map;
+use its <i>✂ Select repair region</i> button to fix artifacts.</p>
+
+<div class="card action">
+<h2>⭐ Map squared at 130 tiles — next window TBD</h2>
+<ol><li>Tell Claude which direction to grow (north/College, west, or lake/south)
+— a canvas will be staged here.</li></ol>
+</div>
+
+<div class="card">
+<h2>Map status</h2>
+<p>130 tiles · screen tiles (180,14)–(189,26) · 5120×6656 px ·
+11 windows + 3 repair applications committed · all seams &lt; 1.0 ·
+Google sessions used: 5/100 ($0.00)</p>
+<p><a href="map/toronto_map.png">full-resolution map</a> ·
+<a href="map/toronto_map_overview.png">overview image</a></p>
+</div>
+
+<div class="card">
+<h2>Workflows — full guide: <a href="/WORKFLOW.md">WORKFLOW.md</a></h2>
+<p><b>Grow:</b> Claude stages a window canvas here → you stylize it in a fresh
+web-app chat → drop into <code>style_refs/</code> → Claude commits (QA,
+seam-cut, map + viewer rebuild) and stages the next window.</p>
+<p><b>Repair:</b> spot an artifact in the <a href="viewer/">viewer</a> →
+✂ select a rectangle → download the canvas → stylize it (fresh chat, repair
+prompt is auto-provided) → drop into <code>style_refs/</code> → Claude commits
+the patch.</p>
+<p class="muted">Golden rule: one generation per chat — chat history
+contaminates results (the hallucinated water and rail tracks both came from
+reused chats).</p>
+</div>
+
+<div class="card">
+<h2>Archives</h2>
+<p><a href="tests/index.html">tilelib test artifacts</a> ·
+<a href="renders/">renders/</a> ·
+<a href="infill/">infill canvases</a> ·
+<a href="repair/">repair packages</a> ·
+<a href="../style_refs/">style_refs/</a></p>
+</div>

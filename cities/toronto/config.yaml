@@ -1,0 +1,35 @@
+# City configuration: Toronto, Canada
+# A city is a boundary + CRS + grid parameters; everything else is derived.
+
+name: toronto
+display_name: Toronto, Canada
+
+# Projected CRS used for the world-space grid. MTM zone 10 (NAD83) — the CRS the
+# City of Toronto publishes its own open data in. Meters.
+crs: EPSG:2952
+
+# Seed point (lon, lat WGS84) — Nathan Phillips Square. Used to derive the grid
+# origin and as the default center for tools.
+seed_lonlat: [-79.3832, 43.6532]
+
+# Grid definition. The quadrant is the atomic generation unit (512x512 px).
+# One model call generates a 2x2 quadrant block (1024x1024 px).
+grid:
+  quadrant_px: 512            # pixels per quadrant edge
+  meters_per_quadrant: 128.0  # ground size of one quadrant → 0.25 m/px
+  # Grid origin in CRS coordinates (meters): the NW corner of quadrant (0,0).
+  # Seed point (Nathan Phillips Square) is at EPSG:2952 (314222, 4834812);
+  # origin gives ~16 km west / ~8 km north margin, snapped to the 128 m grid,
+  # placing the seed at quadrant (125, 63).
+  origin_xy: [298112.0, 4842880.0]
+
+# Isometric camera parameters for the renderer (Phase 1).
+camera:
+  azimuth_deg: 225     # looking from the south-west, classic SimCity angle
+  elevation_deg: 30    # dimetric "2:1 pixel art" elevation
+  projection: orthographic
+
+# Pilot region for first end-to-end runs (Phase 5): downtown core,
+# Bathurst → Don River, waterfront → Bloor. Lon/lat bounding box, refined later
+# by the bounds-app polygon stored in the DB.
+pilot_bbox_lonlat: [-79.4110, 43.6330, -79.3470, 43.6710]
