@@ -185,6 +185,7 @@ def cmd_commit(args) -> None:
             tile.save(f)
             touched += 1
     print(f"updated {touched} tiles")
+    # water normalization intentionally NOT run (disabled 2026-08-12)
     subprocess.run([sys.executable, str(REPO / "tools" / "assemble_map.py")], check=True)
     subprocess.run([sys.executable, str(REPO / "tools" / "build_pyramid.py")], check=True)
 

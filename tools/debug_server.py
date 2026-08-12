@@ -22,6 +22,13 @@ class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *a, **kw):
         super().__init__(*a, directory=str(REPO), **kw)
 
+    def end_headers(self):
+        # the map grows/changes on every commit — never let the browser cache
+        # the pyramid or viewer pages (stale DZI hides new tiles)
+        if self.path.startswith("/docs/") or self.path.endswith(".html") or self.path == "/":
+            self.send_header("Cache-Control", "no-store")
+        super().end_headers()
+
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
         if parsed.path != "/api/repair":

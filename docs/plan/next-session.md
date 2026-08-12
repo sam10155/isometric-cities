@@ -336,3 +336,37 @@ planner v2 (seed from existing content).
   south/lake rows 13-). Bigger arcs: automate generation via API credits
   (~USD 15 covers pilot); planner v2 (auto window choice); color
   normalization pass (NYC lesson — drift not yet visible but will come).
+
+## Design rationale (2026-08-11): why the generative stage is load-bearing
+
+Evaluated replacing Nano Banana with non-AI rendering (coworker due diligence):
+- Image filters (quantize/dither/median): produces "posterized photo", not
+  drawn art — photogrammetry mush survives all filtering. Evidence:
+  debug/renders/option1_comparison.png (A/B/C vs Nano Banana panel).
+- NPR re-render of photogrammetry (Blender/UE5 toon+outline): blocked by the
+  input — noisy normals make cel shading read as melted clay, outline shaders
+  trace mesh noise, baked-in real lighting prevents stylized re-lighting.
+- Procedural rebuild from vector data (CityEngine/OSM->game engine): the real
+  non-AI path, but months of work and generic buildings — loses landmark
+  specificity (shark roof, CN Tower, logos) that the model reads for free.
+The pipeline's magic step is SEMANTIC (recognize window/tree/streetcar, then
+redraw); everything around it is already deterministic. Possible side-uses of
+the cheap filter: far-zoom pyramid levels, "sketch mode" for ungenerated areas.
+
+## Color-drift audit (resume session): NO normalization needed yet
+
+Measured adjacent-tile edge color deltas: within-batch mean 7.8 (p90 16.1) vs
+cross-batch 9.2 (p90 18.5) — only ~18% elevated; anchored infill is containing
+drift at boundaries. Per-batch mean differences (lum 86-114) are content-
+driven (water vs towers). RE-RUN this audit every ~10 windows (script pattern
+in transcript / rebuild from window.py QA utils); implement NYC-style anchor
+color normalization only if cross/within ratio exceeds ~1.5.
+
+## QA note (2026-08-12): structural-corr is content-sensitive
+
+Downward trend in commit scores (0.94 towers -> 0.77 residential) tracks
+CONTENT, not quality: tree canopy + low-rise housing redraws with more
+artistic liberty, lowering pixel correlation. Visual check confirmed the
+0.765 window is clean. Keep the 0.75 gate; for residential/tree windows
+lean on the visual once-over rather than the number. If a TOWER window ever
+scores <0.85, that IS an alarm.

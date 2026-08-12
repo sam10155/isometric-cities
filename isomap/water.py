@@ -77,6 +77,7 @@ out geom;"""
 
     coastlines: list[list[tuple[float, float]]] = []
     polygons: list[list[tuple[float, float]]] = []
+    holes: list[list[tuple[float, float]]] = []
     for el in raw.get("elements", []):
         if el["type"] == "way" and "geometry" in el:
             pts = [(g["lon"], g["lat"]) for g in el["geometry"]]
@@ -86,16 +87,26 @@ out geom;"""
                 polygons.append(pts)
         elif el["type"] == "relation":
             # outer rings arrive as way fragments — stitch them closed
-            # (Lake Ontario is a natural=water multipolygon relation)
-            frags = [
+            # (Lake Ontario is a natural=water multipolygon relation).
+            # INNER rings are islands (e.g. the Toronto Islands + airport!) —
+            # they must be collected as holes or the island reads as water.
+            frags_out = [
                 [(g["lon"], g["lat"]) for g in m["geometry"]]
                 for m in el.get("members", [])
                 if m.get("role") == "outer" and "geometry" in m
             ]
-            polygons.extend(_stitch_rings(frags))
+            frags_in = [
+                [(g["lon"], g["lat"]) for g in m["geometry"]]
+                for m in el.get("members", [])
+                if m.get("role") == "inner" and "geometry" in m
+            ]
+            polygons.extend(_stitch_rings(frags_out))
+            holes.extend(_stitch_rings(frags_in))
     out = water_path(city)
-    out.write_text(json.dumps({"coastlines": coastlines, "polygons": polygons}))
-    print(f"water data: {len(coastlines)} coastline ways, {len(polygons)} water polygons")
+    out.write_text(json.dumps(
+        {"coastlines": coastlines, "polygons": polygons, "holes": holes}))
+    print(f"water data: {len(coastlines)} coastline ways, {len(polygons)} water "
+          f"polygons, {len(holes)} island holes")
     return out
 
 
@@ -146,6 +157,9 @@ def _lakeward(lon: float, lat: float, coastlines: list, max_deg=0.05) -> bool:
 
 def is_water(city: CityConfig, lon: float, lat: float, data: dict | None = None) -> bool:
     data = data or _load(city)
+    # islands are holes in the water multipolygon — land, whatever else says
+    if any(_in_polygon(lon, lat, ring) for ring in data.get("holes", [])):
+        return False
     if _lakeward(lon, lat, data["coastlines"]):
         return True
     return any(_in_polygon(lon, lat, ring) for ring in data["polygons"])

@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from PIL import Image
+Image.MAX_IMAGE_PIXELS = None  # the map is a known, self-made gigapixel image
 
 TILE = 512
 OVERLAP = 1

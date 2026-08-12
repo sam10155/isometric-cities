@@ -11,6 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from PIL import Image
+Image.MAX_IMAGE_PIXELS = None  # the map is a known, self-made gigapixel image
 
 from isomap.config import load_city
 from isomap.store import QuadrantStore

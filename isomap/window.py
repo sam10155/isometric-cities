@@ -202,6 +202,10 @@ def cmd_commit(args) -> None:
     city = load_city(args.city)
     w = (args.min_ti, args.min_tj, args.max_ti, args.max_tj)
     anchors, side = anchor_rows(city, w)
+    if len(anchors) == (w[2] - w[0] + 1) * (w[3] - w[1] + 1):
+        sys.exit("window is already fully committed — nothing to commit "
+                 "(re-running a finished commit is a no-op; use isomap.repair "
+                 "to change committed content)")
     name = window_name(w)
     p = city.grid.quadrant_px
 
@@ -240,8 +244,9 @@ def cmd_commit(args) -> None:
     # align against the STALE canvas (what the model saw), seam against fresh
     o, shift = align_output(o, np.asarray(canvas, dtype=float))
     print(f"QA: structural corr {corr:.3f}, alignment {shift}")
-    if corr < 0.75:
-        sys.exit("structural fidelity below 0.75 — inspect before committing")
+    if corr < 0.75 and not args.force:
+        sys.exit("structural fidelity below 0.75 — inspect, then rerun with "
+                 "--force if the content explains it (e.g. mostly open water)")
 
     def seam_pass(final: np.ndarray, canvas_a: np.ndarray, one_side: str) -> np.ndarray:
         """Apply one anchor-boundary seam pass; arrays are (H, W, 3)."""
@@ -300,6 +305,9 @@ def cmd_commit(args) -> None:
 
     import subprocess
 
+    # NOTE: automatic water normalization DISABLED 2026-08-12 (user: it was
+    # degrading shorelines/the airport). Committed pixels are exactly what the
+    # generation produced. Revisit via isomap.watercolor if water seams return.
     subprocess.run([sys.executable, str(REPO / "tools" / "assemble_map.py")], check=True)
     subprocess.run([sys.executable, str(REPO / "tools" / "build_pyramid.py")], check=True)
 
@@ -322,6 +330,8 @@ def main() -> None:
                             help="force-omit the water style note")
         else:
             sp.add_argument("output")
+            sp.add_argument("--force", action="store_true",
+                            help="commit despite a low structural score (after visual check)")
         sp.set_defaults(func=fn)
     args = ap.parse_args()
     args.func(args)
