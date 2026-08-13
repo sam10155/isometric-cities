@@ -147,7 +147,9 @@ def cmd_prepare(args) -> None:
 
     from .tiles3d import Tiles3dClient
 
-    region = frame.tile_fetch_region(*w)
+    # fetch one extra tile row+col: the canvas gets a sacrificial 256px pad on
+    # the right+bottom so the Gemini watermark lands there (cropped at commit)
+    region = frame.tile_fetch_region(w[0], w[1], w[2] + 1, w[3] + 1)
     client = Tiles3dClient(city.name, max_requests=args.max_requests)
     meshes = client.collect_meshes(region, target_error=8.0)
     print(f"meshes: {len(meshes)} (new requests {client.stats.network_requests}, "
@@ -159,7 +161,7 @@ def cmd_prepare(args) -> None:
 
     print("rendering window...")
     glbs = [Path(p) for p in json.loads(manifest.read_text())["meshes"]]
-    img = render_screen_block(frame, *w, glbs)
+    img = render_screen_block(frame, w[0], w[1], w[2] + 1, w[3] + 1, glbs)
     RENDERS.mkdir(parents=True, exist_ok=True)
     img.save(RENDERS / f"toronto_{name}_render.png")
 
@@ -177,6 +179,17 @@ def cmd_prepare(args) -> None:
                 render_imgs[(ti, tj)] = tile
 
     canvas = compose_canvas(city, w, anchor_imgs, render_imgs, scale=1)
+    # sacrificial watermark pad: 256px of render content on right+bottom.
+    # The Gemini app stamps its sparkle in the output's bottom-right corner;
+    # with the pad, the sparkle lands on throwaway pixels (commit crops them).
+    PAD = 256
+    wpx, hpx = canvas.size
+    padded = Image.new("RGB", (wpx + PAD, hpx + PAD))
+    padded.paste(canvas, (0, 0))
+    padded.paste(img.crop((wpx, 0, wpx + PAD, hpx)), (wpx, 0))
+    padded.paste(img.crop((0, hpx, wpx, hpx + PAD)), (0, hpx))
+    padded.paste(img.crop((wpx, hpx, wpx + PAD, hpx + PAD)), (wpx, hpx))
+    canvas = padded
     INFILL.mkdir(parents=True, exist_ok=True)
     canvas.save(INFILL / f"{name}_canvas.png")
     if args.water is None:
@@ -243,6 +256,11 @@ def cmd_commit(args) -> None:
     corr = np.corrcoef(small_a.flatten(), small_b.flatten())[0, 1]
     # align against the STALE canvas (what the model saw), seam against fresh
     o, shift = align_output(o, np.asarray(canvas, dtype=float))
+    # crop the sacrificial watermark pad (canvas larger than the window area)
+    win_w = (w[2] - w[0] + 1) * p
+    win_h = (w[3] - w[1] + 1) * p
+    if o.shape[1] > win_w or o.shape[0] > win_h:
+        o = o[:win_h, :win_w]
     print(f"QA: structural corr {corr:.3f}, alignment {shift}")
     if corr < 0.75 and not args.force:
         sys.exit("structural fidelity below 0.75 — inspect, then rerun with "
@@ -267,7 +285,13 @@ def cmd_commit(args) -> None:
         else:
             band0 = (n_total - n_anchor) * p
         band = slice(band0, band0 + 96)
-        path = seam_cut_horizontal(ca[band], f[band])
+        if getattr(args, "hard_seam", False):
+            # zero model pixels inside anchor tiles: cut exactly at the
+            # anchor/new boundary (use when the model hallucinated the
+            # anchor region and even the blend band can't be trusted)
+            path = np.full(f.shape[1], 96 if eff == "top" else 0, dtype=int)
+        else:
+            path = seam_cut_horizontal(ca[band], f[band])
         g = f.copy()
         for x in range(g.shape[1]):
             yc = band0 + path[x]
@@ -332,6 +356,9 @@ def main() -> None:
             sp.add_argument("output")
             sp.add_argument("--force", action="store_true",
                             help="commit despite a low structural score (after visual check)")
+            sp.add_argument("--hard-seam", action="store_true",
+                            help="no blend band: anchor tiles keep 100% committed "
+                                 "pixels (use when the model hallucinated near anchors)")
         sp.set_defaults(func=fn)
     args = ap.parse_args()
     args.func(args)
