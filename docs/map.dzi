@@ -1,2 +1,2 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Image xmlns="http://schemas.microsoft.com/deepzoom/2008" Format="png" Overlap="1" TileSize="512"><Size Width="12800" Height="14336"/></Image>
+<Image xmlns="http://schemas.microsoft.com/deepzoom/2008" Format="png" Overlap="0" TileSize="512"><Size Width="65536" Height="49152"/></Image>

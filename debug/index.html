@@ -7,40 +7,32 @@
          max-width: 62em; padding: 0 1em; color: #222; }
   h1 { font-size: 1.4em; }
   h2 { font-size: 1.1em; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
-  img { max-width: 100%; border: 1px solid #ddd; background: #fff; padding: 4px; }
   .card { background: #fff; border: 1px solid #ddd; border-radius: 8px;
           padding: 1em 1.2em; margin: 1em 0; }
   .action { border-left: 4px solid #2e5cff; }
-  code { background: #eef2f7; padding: 1px 5px; border-radius: 3px; }
-  ol { line-height: 1.7; }
   .muted { color: #667; font-size: .9em; }
 </style>
-
 <h1>🗺️ iso-map — Isometric Pixel-Art Toronto</h1>
-<p><b><a href="viewer/">Open the deep-zoom viewer</a></b> — pan/zoom the map;
-use its <i>✂ Select repair region</i> button to fix artifacts.</p>
+<p><b><a href="viewer/">Open the deep-zoom viewer</a></b> · live:
+<a href="https://sam10155.github.io/isometric-cities/">sam10155.github.io/isometric-cities</a></p>
 
 <div class="card action">
-<h2>⭐ Current task: w171_32_174_35 — FINAL RING WINDOW (bottom-left corner)</h2>
-<div class="card action">
-<p><a href="infill/w171_32_174_35_canvas.png" download>⬇ canvas</a> ·
-<a href="infill/w171_32_174_35_prompt.txt" target="_blank">prompt</a> →
-save into style_refs/ with the window id (png or jpg both fine).</p>
+<h2>⭐ Staged windows (fresh chat each, any order)</h2>
+<p>(nothing staged — ask Claude)</p>
+<p class="muted">Save results into style_refs/ with the window id in the
+filename (png or jpg), then tell Claude. This list is generated from disk
+state — every link works.</p>
 </div>
 
 <div class="card">
 <h2>Map status</h2>
-<p>691 tiles · one window from the 700-tile ring (25×28, ~183 MP) → ring completes at 700 tiles (25×28, ~183 MP)</p>
-<p><a href="map/toronto_map.png">full map</a> ·
-<a href="map/toronto_map_overview.png">overview</a> ·
-<a href="viewer/">deep-zoom viewer</a></p>
+<p>1054 tiles · extent (168,5)–(198,38) · 0 windows staged</p>
 </div>
 
 <div class="card">
 <h2>Workflows — full guide: <a href="/WORKFLOW.md">WORKFLOW.md</a></h2>
-<p><b>Grow:</b> stylize staged canvas (fresh chat) → drop into style_refs/ →
-tell Claude. <b>Repair:</b> ✂ select in the viewer → stylize → drop → tell
-Claude.</p>
+<p><b>Grow:</b> stylize staged canvas → drop into style_refs/ → tell Claude.
+<b>Repair:</b> ✂ select in the viewer → stylize → drop → tell Claude.</p>
 </div>
 
 <div class="card">

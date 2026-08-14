@@ -69,15 +69,29 @@ def _compose(tile_dir: Path, prefix: str, px0: int, py0: int, px1: int, py1: int
 
 
 def cmd_export(args) -> None:
+    from .pyramid import PYR_ORIGIN
+
     city = load_city(args.city)
-    min_ti, min_tj = _map_bounds(city)
-    # viewer/map-relative px -> absolute tile-space px
-    ax0 = args.x0 + min_ti * P
-    ay0 = args.y0 + min_tj * P
-    ax1 = args.x1 + min_ti * P
-    ay1 = args.y1 + min_tj * P
+    # viewer px are FIXED pyramid-frame coords -> absolute tile-space px
+    ax0 = args.x0 + PYR_ORIGIN[0] * P
+    ay0 = args.y0 + PYR_ORIGIN[1] * P
+    ax1 = args.x1 + PYR_ORIGIN[0] * P
+    ay1 = args.y1 + PYR_ORIGIN[1] * P
     name = args.name or f"r{ax0}_{ay0}_{ax1}_{ay1}"
-    ex0, ey0, ex1, ey1 = ax0 - MARGIN, ay0 - MARGIN, ax1 + MARGIN, ay1 + MARGIN
+    # clamp margins to the committed map so canvases never carry black bands
+    # (an off-map black margin reads as "finished pixel art" to the model)
+    with QuadrantStore(city.db_path) as store:
+        gs = store.load_grid_state()
+    cs = gs.quadrants(QState.GENERATED)
+    bx0 = min(c[0] for c in cs) * P
+    by0 = min(c[1] for c in cs) * P
+    bx1 = (max(c[0] for c in cs) + 1) * P
+    by1 = (max(c[1] for c in cs) + 1) * P
+    ml = min(MARGIN, ax0 - bx0)
+    mt = min(MARGIN, ay0 - by0)
+    mr = min(MARGIN, bx1 - ax1)
+    mb = min(MARGIN, by1 - ay1)
+    ex0, ey0, ex1, ey1 = ax0 - ml, ay0 - mt, ax1 + mr, ay1 + mb
 
     REPAIR.mkdir(parents=True, exist_ok=True)
     map_crop = _compose(city.city_dir / "map_tiles", "t", ex0, ey0, ex1, ey1)
@@ -86,8 +100,7 @@ def cmd_export(args) -> None:
     render_crop.save(REPAIR / f"{name}_render.png")
 
     canvas = map_crop.copy()
-    canvas.paste(render_crop.crop((MARGIN, MARGIN, ex1 - ex0 - MARGIN, ey1 - ey0 - MARGIN)),
-                 (MARGIN, MARGIN))
+    canvas.paste(render_crop.crop((ml, mt, ex1 - ex0 - mr, ey1 - ey0 - mb)), (ml, mt))
     canvas.save(REPAIR / f"{name}_canvas.png")
     # ground-truth water test over the repair rect (screen px -> lon/lat -> OSM)
     from .render import ScreenFrame
@@ -107,7 +120,8 @@ def cmd_export(args) -> None:
     prompt = REPAIR_PROMPT + (WATER_NOTE if wf > 0.02 else "")
     (REPAIR / f"{name}_prompt.txt").write_text(prompt)
     (REPAIR / f"{name}_meta.json").write_text(json.dumps({
-        "abs_rect": [ax0, ay0, ax1, ay1], "margin": MARGIN}))
+        "abs_rect": [ax0, ay0, ax1, ay1], "margin": MARGIN,
+        "margins": [ml, mt, mr, mb]}))
     print(json.dumps({
         "name": name,
         "canvas": f"debug/repair/{name}_canvas.png",
@@ -123,6 +137,7 @@ def cmd_commit(args) -> None:
     meta = json.loads((REPAIR / f"{args.name}_meta.json").read_text())
     ax0, ay0, ax1, ay1 = meta["abs_rect"]
     m = meta["margin"]
+    ml, mt, mr, mb = meta.get("margins", [m, m, m, m])
     canvas = Image.open(REPAIR / f"{args.name}_canvas.png").convert("RGB")
 
     output = Path(args.output)
@@ -140,19 +155,30 @@ def cmd_commit(args) -> None:
     # time map crop (see window.py commit; prevents reverting interim commits)
     anchor = np.asarray(
         _compose(city.city_dir / "map_tiles", "t",
-                 ax0 - m, ay0 - m, ax1 + m, ay1 + m), dtype=float)
+                 ax0 - ml, ay0 - mt, ax1 + mr, ay1 + mb), dtype=float)
     o, shift = align_output(o, c)
     print(f"alignment: {shift}")
+    # sanity gate: real repair outputs land within a few px; a huge shift means
+    # the output doesn't match the canvas (wrong region or unstylized photoreal
+    # — see the r91838 incident, 2026-08-14) and would smear garbage into the map
+    if max(abs(int(shift[0])), abs(int(shift[1]))) > 64 and not args.force:
+        sys.exit(f"alignment {shift} is implausible for a repair — output likely "
+                 "doesn't match the canvas (wrong crop or not stylized). Nothing "
+                 "was committed; inspect the output, then rerun with --force if "
+                 "it is actually correct.")
 
     final = o.copy()
     H, W = final.shape[:2]
-    for side in ("top", "bottom", "left", "right"):
+    for side, sm in (("top", mt), ("bottom", mb), ("left", ml), ("right", mr)):
+        if sm < 96:  # map-edge side: no anchor to seam against
+            print(f"seam pass '{side}': skipped (margin {sm})")
+            continue
         transposed = side in ("left", "right")
         f = final.transpose(1, 0, 2) if transposed else final
         a = anchor.transpose(1, 0, 2) if transposed else anchor
         eff = {"left": "top", "right": "bottom"}.get(side, side)
         n = f.shape[0]
-        band0 = m - 96 if eff == "top" else n - m
+        band0 = sm - 96 if eff == "top" else n - sm
         band = slice(band0, band0 + 96)
         path = seam_cut_horizontal(a[band], f[band])
         for x in range(f.shape[1]):
@@ -164,20 +190,20 @@ def cmd_commit(args) -> None:
         final = f.transpose(1, 0, 2) if transposed else f
 
     # write back affected tiles
-    ex0, ey0 = ax0 - m, ay0 - m
+    ex0, ey0 = ax0 - ml, ay0 - mt
     img = Image.fromarray(final.astype(np.uint8))
     tiles_dir = city.city_dir / "map_tiles"
     touched = 0
-    for tj in range(ey0 // P, (ay1 + m - 1) // P + 1):
-        for ti in range(ex0 // P, (ax1 + m - 1) // P + 1):
+    for tj in range(ey0 // P, (ay1 + mb - 1) // P + 1):
+        for ti in range(ex0 // P, (ax1 + mr - 1) // P + 1):
             f = tiles_dir / f"t{ti}_{tj}.png"
             if not f.exists():
                 continue
             tile = Image.open(f).convert("RGB")
             sx0 = max(ex0, ti * P)
             sy0 = max(ey0, tj * P)
-            sx1 = min(ax1 + m, (ti + 1) * P)
-            sy1 = min(ay1 + m, (tj + 1) * P)
+            sx1 = min(ax1 + mr, (ti + 1) * P)
+            sy1 = min(ay1 + mb, (tj + 1) * P)
             if sx1 <= sx0 or sy1 <= sy0:
                 continue
             patch = img.crop((sx0 - ex0, sy0 - ey0, sx1 - ex0, sy1 - ey0))
@@ -186,8 +212,10 @@ def cmd_commit(args) -> None:
             touched += 1
     print(f"updated {touched} tiles")
     # water normalization intentionally NOT run (disabled 2026-08-12)
-    subprocess.run([sys.executable, str(REPO / "tools" / "assemble_map.py")], check=True)
-    subprocess.run([sys.executable, str(REPO / "tools" / "build_pyramid.py")], check=True)
+    subprocess.run([sys.executable, "-m", "isomap.pyramid", "update", args.city,
+                    str(ex0 // P), str(ey0 // P),
+                    str((ax1 + mr) // P), str((ay1 + mb) // P)],
+                   check=True, cwd=REPO)
 
 
 def main() -> None:
@@ -203,6 +231,8 @@ def main() -> None:
     sp.add_argument("city")
     sp.add_argument("name")
     sp.add_argument("output")
+    sp.add_argument("--force", action="store_true",
+                    help="commit despite an implausible alignment shift")
     sp.set_defaults(func=cmd_commit)
     args = ap.parse_args()
     args.func(args)

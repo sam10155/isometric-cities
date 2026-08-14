@@ -114,28 +114,28 @@ def anchor_rows(city: CityConfig, w: tuple[int, int, int, int]) -> tuple[set, st
     row_sides = {"top": prefix(full_rows, w[1]), "bottom": suffix(full_rows, w[3])}
     col_sides = {"left": prefix(full_cols, w[0]), "right": suffix(full_cols, w[2])}
 
-    # try single-side, then corner (one row side + one col side) layouts
-    for sides in (
-        [("top",)], [("bottom",)], [("left",)], [("right",)],
-        [("top", "left")], [("top", "right")],
-        [("bottom", "left")], [("bottom", "right")],
-    ):
-        combo = sides[0]
-        covered = set()
-        ok = True
-        for s in combo:
-            band = row_sides.get(s) if s in ("top", "bottom") else col_sides.get(s)
-            if not band:
-                ok = False
-                break
-            if s in ("top", "bottom"):
-                covered |= {(ti, tj) for tj in band for ti in range(w[0], w[2] + 1)}
-            else:
-                covered |= {(ti, tj) for ti in band for tj in range(w[1], w[3] + 1)}
-        if ok and covered == anchors:
-            return anchors, "+".join(combo)
+    # try every combination of edge bands (1-4 sides), smallest first; the
+    # seam machinery applies one pass per side, so any covered combo works
+    from itertools import combinations
+
+    all_sides = ("top", "bottom", "left", "right")
+    for k in (1, 2, 3, 4):
+        for combo in combinations(all_sides, k):
+            covered = set()
+            ok = True
+            for s in combo:
+                band = row_sides.get(s) if s in ("top", "bottom") else col_sides.get(s)
+                if not band:
+                    ok = False
+                    break
+                if s in ("top", "bottom"):
+                    covered |= {(ti, tj) for tj in band for ti in range(w[0], w[2] + 1)}
+                else:
+                    covered |= {(ti, tj) for ti in band for tj in range(w[1], w[3] + 1)}
+            if ok and covered == anchors:
+                return anchors, "+".join(combo)
     sys.exit(f"unsupported anchor layout: rows {rows}, cols {cols} "
-             f"(need full rows/cols on 1-2 window edges)")
+             f"(anchors must be expressible as full edge bands)")
 
 
 def cmd_prepare(args) -> None:
@@ -332,8 +332,10 @@ def cmd_commit(args) -> None:
     # NOTE: automatic water normalization DISABLED 2026-08-12 (user: it was
     # degrading shorelines/the airport). Committed pixels are exactly what the
     # generation produced. Revisit via isomap.watercolor if water seams return.
-    subprocess.run([sys.executable, str(REPO / "tools" / "assemble_map.py")], check=True)
-    subprocess.run([sys.executable, str(REPO / "tools" / "build_pyramid.py")], check=True)
+    # Incremental pyramid: only this window's tiles + ancestors (seconds).
+    subprocess.run([sys.executable, "-m", "isomap.pyramid", "update", args.city,
+                    str(w[0]), str(w[1]), str(w[2]), str(w[3])],
+                   check=True, cwd=REPO)
 
 
 def main() -> None:

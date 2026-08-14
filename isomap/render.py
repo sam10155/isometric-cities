@@ -189,6 +189,34 @@ def load_mesh_vertices(glb_path: Path) -> list[tuple[np.ndarray, np.ndarray, np.
     return out
 
 
+def _rasterize_paths(frame, paths, sx0, sy0, px_w, px_h, m_per_px):
+    """Rasterize a set of glbs into fresh buffers (one worker's share)."""
+    img_buf = np.zeros((px_h, px_w, 3), dtype=np.uint8)
+    zbuf = np.full((px_h, px_w), -np.inf, dtype=np.float32)
+
+    for path in paths:
+        for verts_ecef, faces, uv, tex in load_mesh_vertices(path):
+            s = frame.ecef_to_screen(verts_ecef)
+            xs_all = (s[:, 0] - sx0) / m_per_px
+            ys_all = (s[:, 1] - sy0) / m_per_px
+            # mesh-level early reject
+            if (xs_all.max() < 0 or xs_all.min() >= px_w
+                    or ys_all.max() < 0 or ys_all.min() >= px_h):
+                continue
+            depth = s[:, 2]  # cam z = -(enu . forward): larger = closer
+
+            # vectorized per-face culling: loop only over visible triangles
+            fx = xs_all[faces]
+            fy = ys_all[faces]
+            vis = ((fx.max(axis=1) >= 0) & (fx.min(axis=1) < px_w)
+                   & (fy.max(axis=1) >= 0) & (fy.min(axis=1) < px_h))
+            for i in np.nonzero(vis)[0]:
+                f = faces[i]
+                _raster_tri(img_buf, zbuf, xs_all[f], ys_all[f], depth[f],
+                            uv[f] if uv is not None else None, tex)
+    return img_buf, zbuf
+
+
 def render_screen_block(
     frame: ScreenFrame,
     min_ti: int,
@@ -197,13 +225,20 @@ def render_screen_block(
     max_tj: int,
     glb_paths: list[Path],
     supersample: int = 1,
+    workers: int | None = None,
 ) -> Image.Image:
     """Render an inclusive SCREEN-TILE rect in the global frame.
 
     Because every render shares the frame, blocks rendered separately are
     pixel-exactly composable: tile (ti, tj) shows identical content no matter
     which render it was cropped from.
+
+    Rendering parallelizes across CPU cores (z-buffers merge per pixel, so
+    the result is identical to a single-core render).
     """
+    import multiprocessing as mp
+    import os
+
     g = frame.city.grid
     n_x = max_ti - min_ti + 1
     n_y = max_tj - min_tj + 1
@@ -213,23 +248,24 @@ def render_screen_block(
     sx0 = min_ti * frame.tile_m
     sy0 = min_tj * frame.tile_m
 
-    img_buf = np.zeros((px_h, px_w, 3), dtype=np.uint8)
-    zbuf = np.full((px_h, px_w), -np.inf, dtype=np.float64)
+    if workers is None:
+        workers = min(8, os.cpu_count() or 1)
+    workers = max(1, min(workers, len(glb_paths)))
 
-    for path in glb_paths:
-        for verts_ecef, faces, uv, tex in load_mesh_vertices(path):
-            s = frame.ecef_to_screen(verts_ecef)
-            xs_all = (s[:, 0] - sx0) / m_per_px
-            ys_all = (s[:, 1] - sy0) / m_per_px
-            depth = s[:, 2]  # cam z = -(enu . forward): larger = closer
-
-            for f in faces:
-                xs, ys, zs = xs_all[f], ys_all[f], depth[f]
-                if (xs.max() < 0 or xs.min() >= px_w
-                        or ys.max() < 0 or ys.min() >= px_h):
-                    continue
-                _raster_tri(img_buf, zbuf, xs, ys, zs,
-                            uv[f] if uv is not None else None, tex)
+    if workers == 1:
+        img_buf, _ = _rasterize_paths(frame, glb_paths, sx0, sy0, px_w, px_h, m_per_px)
+    else:
+        chunks = [list(glb_paths[k::workers]) for k in range(workers)]
+        ctx = mp.get_context("fork")
+        with ctx.Pool(workers) as pool:
+            results = pool.starmap(
+                _rasterize_paths,
+                [(frame, c, sx0, sy0, px_w, px_h, m_per_px) for c in chunks])
+        img_buf, zbuf = results[0]
+        for img_w, zb_w in results[1:]:
+            closer = zb_w > zbuf
+            zbuf[closer] = zb_w[closer]
+            img_buf[closer] = img_w[closer]
 
     img = Image.fromarray(img_buf)
     if supersample > 1:
