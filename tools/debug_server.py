@@ -39,8 +39,12 @@ class Handler(SimpleHTTPRequestHandler):
         except (KeyError, ValueError):
             self.send_error(400, "need integer x0,y0,x1,y1")
             return
+        city = q.get("city", "toronto")
+        if not city.isidentifier():
+            self.send_error(400, "bad city")
+            return
         proc = subprocess.run(
-            [sys.executable, "-m", "isomap.repair", "export", "toronto", *args],
+            [sys.executable, "-m", "isomap.repair", "export", city, *args],
             capture_output=True, text=True, cwd=REPO,
         )
         if proc.returncode != 0:

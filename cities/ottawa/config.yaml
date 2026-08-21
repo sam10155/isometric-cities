@@ -1,0 +1,27 @@
+# City configuration: Ottawa, Canada
+# Founding focal point: Parliament Hill.
+
+name: ottawa
+display_name: Ottawa, Canada
+
+# MTM zone 9 (NAD83 CSRS) — the zone covering Ottawa. Meters.
+crs: EPSG:2951
+
+# Seed point (lon, lat WGS84) — Parliament Hill (Centre Block).
+seed_lonlat: [-75.7009, 45.4236]
+
+grid:
+  quadrant_px: 512
+  meters_per_quadrant: 128.0
+  # Same convention as Toronto: ~16 km west / ~8 km north margin, snapped to
+  # the 128 m grid; seed lands at quadrant (125, 62).
+  origin_xy: [351232.0, 5039872.0]
+
+camera:
+  azimuth_deg: 225
+  elevation_deg: 30
+  projection: orthographic
+
+# Downtown core around the Hill: LeBreton Flats -> Rideau, Gatineau shore ->
+# Somerset.
+pilot_bbox_lonlat: [-75.7350, 45.4050, -75.6700, 45.4400]

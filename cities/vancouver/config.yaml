@@ -1,0 +1,26 @@
+# City configuration: Vancouver BC, Canada
+# Founding focal point: Canada Place / Coal Harbour (Stanley Park to the NW).
+
+name: vancouver
+display_name: Vancouver BC, Canada
+
+# NAD83 UTM zone 10N. Meters.
+crs: EPSG:26910
+
+# Seed point (lon, lat WGS84) — Canada Place / Coal Harbour waterfront.
+seed_lonlat: [-123.1140, 49.2900]
+
+grid:
+  quadrant_px: 512
+  meters_per_quadrant: 128.0
+  # Same convention as Toronto: ~16 km west / ~8 km north margin, snapped to
+  # the 128 m grid; seed lands at quadrant (125, 63).
+  origin_xy: [475648.0, 5467776.0]
+
+camera:
+  azimuth_deg: 225
+  elevation_deg: 30
+  projection: orthographic
+
+# Downtown peninsula: Stanley Park -> Main St, False Creek -> harbour.
+pilot_bbox_lonlat: [-123.1600, 49.2650, -123.0850, 49.3100]

@@ -58,7 +58,15 @@ def _stitch_rings(frags: list[list[tuple]]) -> list[list[tuple]]:
     return rings
 
 
-def fetch_water_data(city: CityConfig, bbox=TORONTO_BBOX) -> Path:
+def fetch_water_data(city: CityConfig, bbox=None) -> Path:
+    if bbox is None:
+        if city.name == "toronto":
+            bbox = TORONTO_BBOX
+        else:
+            # Overpass bbox order is (south, west, north, east); pilot bbox is
+            # (min_lon, min_lat, max_lon, max_lat). Pad ~2 km for margins.
+            w, s, e, n = city.pilot_bbox_lonlat
+            bbox = (s - 0.02, w - 0.03, n + 0.02, e + 0.03)
     query = f"""
 [out:json][timeout:90];
 (

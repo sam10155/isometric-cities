@@ -33,17 +33,24 @@ PYR_TILES = (128, 96)      # canvas size in tiles: 65536 x 49152 px
 BG = (26, 39, 51)          # viewer background color
 
 REPO = Path(__file__).resolve().parent.parent
-DOCS = REPO / "docs"
-FILES = DOCS / "map_files"
 
 CANVAS_W = PYR_TILES[0] * P
 CANVAS_H = PYR_TILES[1] * P
 MAX_LEVEL = math.ceil(math.log2(max(CANVAS_W, CANVAS_H)))  # full-res DZI level
 
 
-def write_descriptor() -> None:
-    DOCS.mkdir(parents=True, exist_ok=True)
-    (DOCS / "map.dzi").write_text(
+def city_docs(city: CityConfig) -> Path:
+    """Per-city publish dir: docs/<name>/ — cities never share a pyramid."""
+    return REPO / "docs" / city.name
+
+
+def _files(city: CityConfig) -> Path:
+    return city_docs(city) / "map_files"
+
+
+def write_descriptor(city: CityConfig) -> None:
+    city_docs(city).mkdir(parents=True, exist_ok=True)
+    (city_docs(city) / "map.dzi").write_text(
         f'<?xml version="1.0" encoding="UTF-8"?>\n'
         f'<Image xmlns="http://schemas.microsoft.com/deepzoom/2008" '
         f'Format="png" Overlap="0" TileSize="{P}">'
@@ -51,14 +58,14 @@ def write_descriptor() -> None:
     )
 
 
-def _level_dir(level: int) -> Path:
-    d = FILES / str(level)
+def _level_dir(city: CityConfig, level: int) -> Path:
+    d = _files(city) / str(level)
     d.mkdir(parents=True, exist_ok=True)
     return d
 
 
-def _tile_path(level: int, c: int, r: int) -> Path:
-    return FILES / str(level) / f"{c}_{r}.png"
+def _tile_path(city: CityConfig, level: int, c: int, r: int) -> Path:
+    return _files(city) / str(level) / f"{c}_{r}.png"
 
 
 def _level_grid(level: int) -> tuple[int, int]:
@@ -71,7 +78,7 @@ def _level_grid(level: int) -> tuple[int, int]:
 def update(city: CityConfig, changed: set[tuple[int, int]]) -> int:
     """Propagate changed MAP tiles through the pyramid. Returns tiles written."""
     tiles_dir = city.city_dir / "map_tiles"
-    _level_dir(MAX_LEVEL)
+    _level_dir(city, MAX_LEVEL)
     written = 0
 
     # full-res level: copy map tiles into pyramid positions
@@ -85,7 +92,7 @@ def update(city: CityConfig, changed: set[tuple[int, int]]) -> int:
         src = tiles_dir / f"t{ti}_{tj}.png"
         if src.exists():
             img = Image.open(src).convert("RGB")
-            img.save(_tile_path(MAX_LEVEL, c, r))
+            img.save(_tile_path(city, MAX_LEVEL, c, r))
             written += 1
             dirty.add((c, r))
 
@@ -93,7 +100,7 @@ def update(city: CityConfig, changed: set[tuple[int, int]]) -> int:
     level = MAX_LEVEL
     while level > 0 and dirty:
         level -= 1
-        _level_dir(level)
+        _level_dir(city, level)
         parents = {(c // 2, r // 2) for c, r in dirty}
         gw, gh = _level_grid(level)
         for c, r in parents:
@@ -103,7 +110,7 @@ def update(city: CityConfig, changed: set[tuple[int, int]]) -> int:
             any_child = False
             for dc in (0, 1):
                 for dr in (0, 1):
-                    child = _tile_path(level + 1, c * 2 + dc, r * 2 + dr)
+                    child = _tile_path(city, level + 1, c * 2 + dc, r * 2 + dr)
                     if child.exists():
                         im = Image.open(child).convert("RGB")
                         im = im.resize((im.width // 2 or 1, im.height // 2 or 1),
@@ -119,11 +126,11 @@ def update(city: CityConfig, changed: set[tuple[int, int]]) -> int:
                 th = min(P, lh - r * P)
                 if tw < P or th < P:
                     tile = tile.crop((0, 0, max(tw, 1), max(th, 1)))
-                tile.save(_tile_path(level, c, r))
+                tile.save(_tile_path(city, level, c, r))
                 written += 1
         dirty = parents
 
-    write_descriptor()
+    write_descriptor(city)
     _write_meta(city)
     return written
 
@@ -146,14 +153,14 @@ def _write_meta(city: CityConfig) -> None:
         "origin_tile": list(PYR_ORIGIN),
         "tiles": len(coords),
     }
-    (DOCS / "map_meta.json").write_text(json.dumps(meta))
+    (city_docs(city) / "map_meta.json").write_text(json.dumps(meta))
 
 
 def rebuild(city: CityConfig) -> None:
     import shutil
 
-    if FILES.exists():
-        shutil.rmtree(FILES)
+    if _files(city).exists():
+        shutil.rmtree(_files(city))
     with QuadrantStore(city.db_path) as store:
         coords = store.load_grid_state().quadrants(QState.GENERATED)
     n = update(city, set(coords))

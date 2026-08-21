@@ -90,7 +90,16 @@
       "Bash(curl -s http://localhost:9090/docs/map.dzi)",
       "Bash(curl -s http://localhost:9090/docs/map_meta.json)",
       "Bash(grep -E '^t\\(16[6-9]|17[0-3]\\)_\\(1[2-6]\\)\\\\.png$')",
-      "Bash(sort -t_ -k2 -n)"
+      "Bash(sort -t_ -k2 -n)",
+      "Bash(claude --version)",
+      "Bash(claude update *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://127.0.0.1:9090/debug/index.html)",
+      "Bash(nohup .venv/bin/python tools/debug_server.py)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://127.0.0.1:9090/debug/index.html)",
+      "Bash(awk '{print $NF}')",
+      "Bash(kill 1106099)",
+      "Bash(curl -s -m 3 -o /dev/null -w \"%{http_code}\" http://127.0.0.1:9090/)",
+      "Bash(kill 1106377)"
     ]
   }
 }

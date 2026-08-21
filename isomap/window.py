@@ -47,6 +47,34 @@ WATER_NOTE = """
 Water: the lake/harbour water in this image must be calm, flat pixel-art water in one consistent blue with subtle 2x2 dither shading — no noise, no random texture, no invented boats or objects that are not in the input image."""
 
 
+# Founding prompt for a NEW city's first window: the approved v1 style recipe
+# (docs/plan/style-recipe.md) — full stylization, no anchor language.
+FOUNDING_PROMPT = """Transform this isometric 3D render of downtown {city} into detailed isometric PIXEL ART in the style of classic late-90s city-building games like SimCity 2000 and RollerCoaster Tycoon.
+
+Requirements:
+- Keep the exact same camera angle, layout, and building positions as the input image — every building, road, and rail line must appear in the same place
+- Crisp pixel-art aesthetic: limited color palette, clean dithering, sharp 1-pixel edges, no anti-aliasing blur
+- Bright, slightly saturated daytime colors with the charming toy-like quality of SimCity 2000
+- Roofs, windows, and facades rendered as clean pixel-art detail, not photographic texture
+- No text, no UI elements, no watermarks, no borders
+- Fill the entire frame edge to edge"""
+
+
+def city_short(city: CityConfig) -> str:
+    return city.display_name.split(",")[0]
+
+
+def _refresh_hub() -> None:
+    """Auto-publish: the hub always reflects disk/DB state after any
+    prepare or commit (user request 2026-08-20 — no manual update step)."""
+    import subprocess
+
+    r = subprocess.run([sys.executable, str(REPO / "tools/update_hub.py")],
+                       cwd=REPO, capture_output=True, text=True)
+    print(r.stdout.strip() if r.returncode == 0
+          else f"hub refresh FAILED: {r.stderr.strip()[-300:]}")
+
+
 def water_fraction_window(frame: ScreenFrame, w: tuple[int, int, int, int], n: int = 14) -> float:
     """Ground-truth water fraction of a window's visible ground footprint:
     sample the screen rect on a grid, inverse-project to lon/lat, test against
@@ -69,8 +97,11 @@ def water_fraction_window(frame: ScreenFrame, w: tuple[int, int, int, int], n: i
     return hits / (n * n)
 
 
-def window_name(w: tuple[int, int, int, int]) -> str:
-    return f"w{w[0]}_{w[1]}_{w[2]}_{w[3]}"
+def window_name(city: CityConfig, w: tuple[int, int, int, int]) -> str:
+    # toronto keeps its historical unprefixed names (finals archive, rebuild
+    # script); every other city is prefixed so shared dirs can't collide
+    base = f"w{w[0]}_{w[1]}_{w[2]}_{w[3]}"
+    return base if city.name == "toronto" else f"{city.name}_{base}"
 
 
 def anchor_rows(city: CityConfig, w: tuple[int, int, int, int]) -> tuple[set, str]:
@@ -87,6 +118,10 @@ def anchor_rows(city: CityConfig, w: tuple[int, int, int, int]) -> tuple[set, st
         if gs.get((ti, tj)) is QState.GENERATED
     }
     if not anchors:
+        if not gs.quadrants(QState.GENERATED):
+            # brand-new city: the FIRST window has nothing to anchor to.
+            # Full-stylization prompt instead of infill; no seam passes.
+            return set(), "founding"
         sys.exit("window has no committed anchors — refuse to generate unanchored")
     width = w[2] - w[0] + 1
     height = w[3] - w[1] + 1
@@ -143,7 +178,7 @@ def cmd_prepare(args) -> None:
     frame = ScreenFrame(city)
     w = (args.min_ti, args.min_tj, args.max_ti, args.max_tj)
     anchors, side = anchor_rows(city, w)
-    name = window_name(w)
+    name = window_name(city, w)
 
     from .tiles3d import Tiles3dClient
 
@@ -156,6 +191,7 @@ def cmd_prepare(args) -> None:
           f"cache hits {client.stats.cache_hits})")
     print("sessions:", client.budget.status("map_tiles_session"))
     manifest = REPO / "cities" / city.name / "manifests" / f"{name}.json"
+    manifest.parent.mkdir(parents=True, exist_ok=True)
     manifest.write_text(json.dumps({
         "window": w, "meshes": sorted(str(m.cache_path) for m in meshes)}, indent=1))
 
@@ -163,7 +199,7 @@ def cmd_prepare(args) -> None:
     glbs = [Path(p) for p in json.loads(manifest.read_text())["meshes"]]
     img = render_screen_block(frame, w[0], w[1], w[2] + 1, w[3] + 1, glbs)
     RENDERS.mkdir(parents=True, exist_ok=True)
-    img.save(RENDERS / f"toronto_{name}_render.png")
+    img.save(RENDERS / f"{city.name}_{name}_render.png")
 
     anchor_imgs, render_imgs = {}, {}
     tiles_dir = city.city_dir / "map_tiles"
@@ -200,12 +236,18 @@ def cmd_prepare(args) -> None:
               f" (override with --water/--no-water)")
     else:
         has_water = args.water
-    prompt = INFILL_PROMPT + HARDENING + (WATER_NOTE if has_water else "")
+    if side == "founding":
+        prompt = FOUNDING_PROMPT.format(city=city_short(city))
+    else:
+        prompt = (INFILL_PROMPT.replace("map of Toronto", f"map of {city_short(city)}")
+                  + HARDENING)
+    prompt += WATER_NOTE if has_water else ""
     (INFILL / f"{name}_prompt.txt").write_text(prompt)
+    _refresh_hub()
     print(f"""
 READY — manual step:
   1. Fresh chat in the Gemini web app
-  2. Attach debug/infill/{name}_canvas.png  (anchor rows at the {side})
+  2. Attach debug/infill/{name}_canvas.png  ({'FOUNDING window — whole image gets stylized' if side == 'founding' else f'anchor rows at the {side}'})
   3. Prompt:   debug/infill/{name}_prompt.txt
   4. Save result to style_refs/{name}_pixel.png
   5. Run: python -m isomap.window commit {args.city} {w[0]} {w[1]} {w[2]} {w[3]} style_refs/{name}_pixel.png""")
@@ -219,7 +261,7 @@ def cmd_commit(args) -> None:
         sys.exit("window is already fully committed — nothing to commit "
                  "(re-running a finished commit is a no-op; use isomap.repair "
                  "to change committed content)")
-    name = window_name(w)
+    name = window_name(city, w)
     p = city.grid.quadrant_px
 
     canvas = Image.open(INFILL / f"{name}_canvas.png").convert("RGB")
@@ -310,12 +352,14 @@ def cmd_commit(args) -> None:
         return g.transpose(1, 0, 2) if transposed else g
 
     final = o.copy()
-    for one_side in side.split("+"):
-        final = seam_pass(final, c, one_side)
+    if side != "founding":  # founding has no anchor boundary to seam against
+        for one_side in side.split("+"):
+            final = seam_pass(final, c, one_side)
 
     img = Image.fromarray(final.astype(np.uint8))
     img.save(INFILL / f"{name}_final.png")
     tiles_dir = city.city_dir / "map_tiles"
+    tiles_dir.mkdir(parents=True, exist_ok=True)
     with QuadrantStore(city.db_path) as store:
         n_new = 0
         for j, tj in enumerate(range(w[1], w[3] + 1)):
@@ -336,6 +380,7 @@ def cmd_commit(args) -> None:
     subprocess.run([sys.executable, "-m", "isomap.pyramid", "update", args.city,
                     str(w[0]), str(w[1]), str(w[2]), str(w[3])],
                    check=True, cwd=REPO)
+    _refresh_hub()
 
 
 def main() -> None:

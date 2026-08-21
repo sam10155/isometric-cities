@@ -1,6 +1,10 @@
 # iso-map
 
-**🗺️ Live map: https://sam10155.github.io/isometric-cities/**
+**🗺️ Live maps: https://sam10155.github.io/isometric-cities/** —
+[Toronto](https://sam10155.github.io/isometric-cities/toronto/) ·
+[Ottawa](https://sam10155.github.io/isometric-cities/ottawa/) ·
+[Victoria](https://sam10155.github.io/isometric-cities/victoria/) ·
+[Vancouver](https://sam10155.github.io/isometric-cities/vancouver/)
 
 Generate isometric pixel-art maps of real cities — point the system at any city and get
 a SimCity-2000-style deep-zoom map. First target: **Toronto, Canada**.

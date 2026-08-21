@@ -1,0 +1,27 @@
+# City configuration: Victoria BC, Canada
+# Founding focal point: Inner Harbour / BC Legislature.
+
+name: victoria
+display_name: Victoria BC, Canada
+
+# NAD83 UTM zone 10N. Meters.
+crs: EPSG:26910
+
+# Seed point (lon, lat WGS84) — Inner Harbour causeway between the Empress
+# and the Legislature.
+seed_lonlat: [-123.3702, 48.4210]
+
+grid:
+  quadrant_px: 512
+  meters_per_quadrant: 128.0
+  # Same convention as Toronto: ~16 km west / ~8 km north margin, snapped to
+  # the 128 m grid; seed lands at quadrant (125, 63).
+  origin_xy: [456576.0, 5371264.0]
+
+camera:
+  azimuth_deg: 225
+  elevation_deg: 30
+  projection: orthographic
+
+# Downtown/James Bay: Esquimalt shore -> Fernwood, Dallas Rd -> Bay St.
+pilot_bbox_lonlat: [-123.4000, 48.4050, -123.3400, 48.4400]
