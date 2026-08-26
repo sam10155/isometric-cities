@@ -1,38 +1,38 @@
 <!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Isometric Toronto</title>
+<title>Debug viewer — pixel-art map</title>
 <style>
   html, body { margin: 0; height: 100%; background: #1a2733; }
   #map { width: 100%; height: 100%; }
   #hud { position: fixed; top: 10px; left: 10px; color: #cfe3f5;
          font: 13px sans-serif; background: rgba(20,32,44,.85);
-         padding: 8px 12px; border-radius: 6px; z-index: 10; max-width: 26em; }
-  #hud button { margin-top: 6px; }
-  #selbox { position: fixed; border: 2px dashed #ffd34d;
-            background: rgba(255,211,77,.15); display: none; z-index: 5;
-            pointer-events: none; }
-  #result a { color: #8fd0ff; }
-  #result code { background: rgba(0,0,0,.4); padding: 1px 4px; border-radius: 3px;
-                 display: inline-block; margin-top: 4px; user-select: all; }
+         padding: 8px 12px; border-radius: 6px; }
+  #hud button { margin-left: 8px; }
+  #sel { position: fixed; border: 2px dashed #ffb84d;
+         background: rgba(255,184,77,.15); pointer-events: none; display: none; }
+  #panel { position: fixed; top: 10px; right: 10px; max-width: 26em;
+           color: #cfe3f5; font: 13px sans-serif; background: rgba(20,32,44,.92);
+           padding: 10px 14px; border-radius: 6px; display: none; }
+  #panel a { color: #8fd0ff; }
+  #panel code { display: block; background: #0f1922; padding: 6px;
+                border-radius: 4px; margin-top: 6px; white-space: pre-wrap;
+                word-break: break-all; user-select: all; }
 </style>
 <div id="map"></div>
-<div id="hud">
-  <div id="hudtitle">Isometric map — drag to pan, scroll to zoom</div>
-  <button id="repairBtn">✂ Select repair region</button>
-  <div id="result"></div>
-</div>
-<div id="selbox"></div>
+<div id="hud"><span id="city-label"></span> — drag to pan, scroll to zoom
+  <button id="repair-btn">✂ Select repair region</button></div>
+<div id="sel"></div>
+<div id="panel"></div>
 <script src="https://cdn.jsdelivr.net/npm/openseadragon@4.1/build/openseadragon/openseadragon.min.js"></script>
 <script>
-  const CITY = new URLSearchParams(location.search).get("city") || "toronto";
-  const CITY_NAME = CITY[0].toUpperCase() + CITY.slice(1);
-  document.title = `Isometric ${CITY_NAME}`;
-  document.getElementById("hudtitle").textContent =
-    `Isometric ${CITY_NAME} — drag to pan, scroll to zoom`;
+  const city = new URLSearchParams(location.search).get("city") || "toronto";
+  document.getElementById("city-label").textContent = "Debug viewer — " + city;
+  document.title = "Debug viewer — " + city;
+
   const viewer = OpenSeadragon({
     id: "map",
-    tileSources: `/docs/${CITY}/map.dzi`,
+    tileSources: `/docs/${city}/map.dzi`,
     prefixUrl: "https://cdn.jsdelivr.net/npm/openseadragon@4.1/build/openseadragon/images/",
     showNavigator: true,
     navigatorPosition: "BOTTOM_RIGHT",
@@ -40,72 +40,69 @@
     maxZoomPixelRatio: 4,
     visibilityRatio: 0.7,
   });
-
-  const btn = document.getElementById("repairBtn");
-  const box = document.getElementById("selbox");
-  const result = document.getElementById("result");
-  let selecting = false, start = null;
-
-  btn.onclick = () => {
-    selecting = !selecting;
-    btn.textContent = selecting ? "✂ Drag a rectangle… (click to cancel)"
-                                : "✂ Select repair region";
-    viewer.setMouseNavEnabled(!selecting);
-    if (!selecting) { box.style.display = "none"; start = null; }
-  };
-
-  function imgPoint(ev) {
-    const rect = viewer.element.getBoundingClientRect();
-    const pt = new OpenSeadragon.Point(ev.clientX - rect.left, ev.clientY - rect.top);
-    const vp = viewer.viewport.pointFromPixel(pt);
-    return viewer.viewport.viewportToImageCoordinates(vp);
-  }
-
-  window.addEventListener("pointerdown", ev => {
-    if (!selecting || ev.target.closest("#hud")) return;
-    start = { x: ev.clientX, y: ev.clientY, img: imgPoint(ev) };
-    box.style.display = "block";
-  }, true);
-
-  window.addEventListener("pointermove", ev => {
-    if (!selecting || !start) return;
-    const x0 = Math.min(start.x, ev.clientX), y0 = Math.min(start.y, ev.clientY);
-    box.style.left = x0 + "px"; box.style.top = y0 + "px";
-    box.style.width = Math.abs(ev.clientX - start.x) + "px";
-    box.style.height = Math.abs(ev.clientY - start.y) + "px";
-  }, true);
-
-  window.addEventListener("pointerup", async ev => {
-    if (!selecting || !start) return;
-    const a = start.img, b = imgPoint(ev);
-    const x0 = Math.round(Math.min(a.x, b.x)), y0 = Math.round(Math.min(a.y, b.y));
-    const x1 = Math.round(Math.max(a.x, b.x)), y1 = Math.round(Math.max(a.y, b.y));
-    selecting = false; start = null;
-    btn.textContent = "✂ Select repair region";
-    box.style.display = "none";
-    viewer.setMouseNavEnabled(true);
-    if (x1 - x0 < 32 || y1 - y0 < 32) { result.textContent = "selection too small"; return; }
-    result.textContent = "exporting…";
-    try {
-      const r = await fetch(`/api/repair?city=${CITY}&x0=${x0}&y0=${y0}&x1=${x1}&y1=${y1}`);
-      const j = await r.json();
-      if (j.error) { result.textContent = "error: " + j.error; return; }
-      result.innerHTML =
-        `<div>Repair <b>${j.name}</b>:</div>` +
-        `<a href="/${j.canvas}" download>⬇ canvas (stylize this)</a> · ` +
-        `<a href="/${j.render}" download>⬇ base render</a> · ` +
-        `<a href="/${j.map}" download>⬇ current map</a> · ` +
-        `<a href="/${j.prompt}" target="_blank">prompt</a>` +
-        `<div>after upload: <code>${j.commit_cmd}</code></div>`;
-    } catch (e) { result.textContent = "request failed: " + e; }
-  }, true);
   viewer.addHandler("open", async () => {
     try {
-      const meta = await (await fetch(`/docs/${CITY}/map_meta.json?` + Date.now())).json();
+      const meta = await (await fetch(`/docs/${city}/map_meta.json?` + Date.now())).json();
       const r = viewer.viewport.imageToViewportRectangle(
         new OpenSeadragon.Rect(meta.x, meta.y, meta.w, meta.h));
       viewer.viewport.fitBounds(r, true);
       viewer.viewport.applyConstraints(true);
     } catch (e) { console.warn("no map_meta.json", e); }
   });
+
+  // repair region selection: image-pixel coords, sent to /api/repair
+  const btn = document.getElementById("repair-btn");
+  const sel = document.getElementById("sel");
+  const panel = document.getElementById("panel");
+  let selecting = false, start = null;
+
+  btn.onclick = () => {
+    selecting = !selecting;
+    btn.textContent = selecting ? "cancel selection" : "✂ Select repair region";
+    viewer.setMouseNavEnabled(!selecting);
+    sel.style.display = "none";
+    if (!selecting) start = null;
+  };
+
+  function imgPoint(ev) {
+    const wp = viewer.viewport.pointFromPixel(
+      new OpenSeadragon.Point(ev.clientX, ev.clientY));
+    return viewer.viewport.viewportToImageCoordinates(wp);
+  }
+
+  const el = viewer.canvas;
+  el.addEventListener("pointerdown", ev => {
+    if (!selecting) return;
+    start = { x: ev.clientX, y: ev.clientY, img: imgPoint(ev) };
+    sel.style.display = "block";
+  }, true);
+  el.addEventListener("pointermove", ev => {
+    if (!selecting || !start) return;
+    const x = Math.min(start.x, ev.clientX), y = Math.min(start.y, ev.clientY);
+    sel.style.left = x + "px"; sel.style.top = y + "px";
+    sel.style.width = Math.abs(ev.clientX - start.x) + "px";
+    sel.style.height = Math.abs(ev.clientY - start.y) + "px";
+  }, true);
+  el.addEventListener("pointerup", async ev => {
+    if (!selecting || !start) return;
+    const a = start.img, b = imgPoint(ev);
+    const x0 = Math.round(Math.min(a.x, b.x)), x1 = Math.round(Math.max(a.x, b.x));
+    const y0 = Math.round(Math.min(a.y, b.y)), y1 = Math.round(Math.max(a.y, b.y));
+    btn.onclick();  // leave selection mode
+    if (x1 - x0 < 8 || y1 - y0 < 8) return;
+    panel.style.display = "block";
+    panel.innerHTML = "exporting repair region…";
+    try {
+      const r = await fetch(`/api/repair?city=${city}&x0=${x0}&y0=${y0}&x1=${x1}&y1=${y1}`);
+      const j = await r.json();
+      if (j.error) { panel.innerHTML = "<b>error:</b> " + j.error; return; }
+      panel.innerHTML = `<b>${j.name}</b><br>
+        <a href="/${j.canvas}" download>canvas</a> ·
+        <a href="/${j.prompt}" target="_blank">prompt</a> ·
+        <a href="/${j.render}" target="_blank">render</a> ·
+        <a href="/${j.map}" target="_blank">map</a><br>
+        Stylize in a FRESH chat, save to style_refs/${j.name}_pixel.png, then:
+        <code>${j.commit_cmd}</code>`;
+    } catch (e) { panel.innerHTML = "<b>request failed:</b> " + e; }
+  }, true);
 </script>

@@ -25,7 +25,8 @@ class Handler(SimpleHTTPRequestHandler):
     def end_headers(self):
         # the map grows/changes on every commit — never let the browser cache
         # the pyramid or viewer pages (stale DZI hides new tiles)
-        if self.path.startswith("/docs/") or self.path.endswith(".html") or self.path == "/":
+        if (self.path.startswith("/docs/") or self.path.startswith("/debug/")
+                or self.path.endswith(".html") or self.path == "/"):
             self.send_header("Cache-Control", "no-store")
         super().end_headers()
 
