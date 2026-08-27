@@ -27,6 +27,13 @@ from .config import CityConfig, load_city
 from .store import QuadrantStore
 from .tilelib import QState
 
+
+def _save_quantized(img: Image.Image, path: Path) -> None:
+    """Palette-quantize pyramid tiles: pixel art shrinks to ~40% with no
+    visible change (GitHub Pages caps the deploy artifact at 1 GB)."""
+    img.quantize(colors=256, method=Image.MEDIANCUT,
+                 dither=Image.FLOYDSTEINBERG).save(path, optimize=True)
+
 P = 512
 PYR_ORIGIN = (152, 0)      # map-tile coords of pyramid canvas corner
 PYR_TILES = (128, 96)      # canvas size in tiles: 65536 x 49152 px
@@ -92,7 +99,7 @@ def update(city: CityConfig, changed: set[tuple[int, int]]) -> int:
         src = tiles_dir / f"t{ti}_{tj}.png"
         if src.exists():
             img = Image.open(src).convert("RGB")
-            img.save(_tile_path(city, MAX_LEVEL, c, r))
+            _save_quantized(img, _tile_path(city, MAX_LEVEL, c, r))
             written += 1
             dirty.add((c, r))
 
@@ -126,7 +133,7 @@ def update(city: CityConfig, changed: set[tuple[int, int]]) -> int:
                 th = min(P, lh - r * P)
                 if tw < P or th < P:
                     tile = tile.crop((0, 0, max(tw, 1), max(th, 1)))
-                tile.save(_tile_path(city, level, c, r))
+                _save_quantized(tile, _tile_path(city, level, c, r))
                 written += 1
         dirty = parents
 
