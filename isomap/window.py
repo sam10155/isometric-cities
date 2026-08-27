@@ -315,16 +315,20 @@ def cmd_commit(args) -> None:
         ca = canvas_a.transpose(1, 0, 2) if transposed else canvas_a
         eff = {"left": "top", "right": "bottom"}.get(one_side, one_side)
         if transposed:
-            n_anchor = len({ti for ti, _ in anchors
-                            if all((ti, tj) in anchors for tj in range(w[1], w[3] + 1))})
-            n_total = w[2] - w[0] + 1
+            full = [all((ti, tj) in anchors for tj in range(w[1], w[3] + 1))
+                    for ti in range(w[0], w[2] + 1)]
         else:
-            n_anchor = len({tj for _, tj in anchors
-                            if all((ti, tj) in anchors for ti in range(w[0], w[2] + 1))})
-            n_total = w[3] - w[1] + 1
+            full = [all((ti, tj) in anchors for ti in range(w[0], w[2] + 1))
+                    for tj in range(w[1], w[3] + 1)]
+        n_total = len(full)
+        # count only the contiguous anchor rows/cols on THIS side — a window
+        # anchored on both opposite sides (e.g. top+bottom slot) must not
+        # count the far side's anchors into this side's seam band position
         if eff == "top":
+            n_anchor = next((i for i, v in enumerate(full) if not v), n_total)
             band0 = n_anchor * p - 96
         else:
+            n_anchor = next((i for i, v in enumerate(reversed(full)) if not v), n_total)
             band0 = (n_total - n_anchor) * p
         band = slice(band0, band0 + 96)
         if getattr(args, "hard_seam", False):

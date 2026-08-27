@@ -30,3 +30,4 @@ debug/tests/index.html
 
 # raw web-app outputs
 style_refs/
+.claude/

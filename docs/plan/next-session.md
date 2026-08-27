@@ -362,6 +362,82 @@ driven (water vs towers). RE-RUN this audit every ~10 windows (script pattern
 in transcript / rebuild from window.py QA utils); implement NYC-style anchor
 color normalization only if cross/within ratio exceeds ~1.5.
 
+## Session 2026-08-26: four-city growth day; debug/ wipe recovered; published
+
+- MAP STATE: toronto 1258 tiles (east band ti 199-201 complete tj 2-26; south
+  strip tj 39-41 spans ti 177-201; REMAINING GAP: ti 199-201 x tj 27-38 = four
+  windows, first (198,26-201,29) STAGED). ottawa 160 (block 181-196 x 17-26
+  complete). vancouver 70 (181-190 x 17-23). victoria 73.
+- STAGED at wind-down (6): toronto w198_26_201_29; vancouver 184_23+187_23
+  (latter 78.6% water — expect sub-gate score); victoria 181_17 (REGEN: first
+  try invented a beach/moved coastline — keep the rocky point), 187_17,
+  187_23. Commit cmds are on the hub.
+- INCIDENT: entire debug/ dir deleted mid-session by something outside this
+  session (map data unaffected). Rebuilt: hub, debug/viewer/index.html
+  REWRITTEN from scratch (OSD + ?city= + ✂ repair select -> /api/repair);
+  canvases re-prepared from cache. Lesson: debug/viewer html is hand-written
+  and now lives in the git repo — keep it there.
+- debug_server.py: no-store extended to /debug/ (browsers cached 404s ->
+  "only ottawa shows"; hard refresh once after server restarts).
+- MANUAL TILE STITCH (new repair technique): ottawa marina water-color seam
+  (ratio 1.20) fixed by pasting the model's own repainted anchor tiles
+  (t193_23, t194_23) from the window output, then
+  `python -m isomap.pyramid update ottawa 193 23 194 23`. Valid when the
+  output's edge colors match neighbors (checked mean RGB within ~2 points).
+- QA precedents today: forced commits (user-approved) for mostly-water
+  (0.71-0.75), dense-residential 0.725, ravine-forest 0.713 (after regen
+  killed an invented lake), boats-removed marina 0.727 (user accepted).
+  Anchor-violation rejections: baseball diamond -> soccer pitch (later
+  user-forced; seam-cut protected the committed tile), invented lake,
+  invented beach (victoria regen still pending).
+- Prompt experiment (user): appended "but keep colours across the seam
+  consistent" to the reinterpretation line — first sample had WORSE seam
+  metric (1.20). NOT promoted to template; needs more samples.
+- PUBLISH FLOW: repo = sam10155.github.io/isometric-cities; zip via
+  `zip -r <out>.zip .` from repo root with .gitignore exclusions
+  (+ .claude/ now in .gitignore); user unzips over checkout
+  (rm -rf docs debug isomap tools tests first, then git add -A).
+- Per-run fetch guard: new-territory prepares hit the 3000-request cap ~50%
+  of the time; just re-run — cache makes the second pass complete. Budget:
+  20/100 sessions, $0.00 verified.
+- DISK: VM was at 97-100% repeatedly. Recovered to ~5.8G free. Routine now:
+  after commits, delete debug/infill + debug/renders files whose window is
+  fully GENERATED (script pattern in transcript). Big items already purged:
+  old claude/vscode versions, 9k empty agentSessionData dirs (runaway,
+  2:37am), old transcripts. tile_cache grows ~300-600M per new-territory
+  prepare and is the main pressure; user forbids deleting 3D tile data.
+
+## Session 2026-08-27: blocks closed; seam bug fixed; composite techniques
+
+- MAP STATE: toronto 1291 (east side COMPLETE — notch ti 199-201 × tj 27-38
+  filled; full extent 165-201 × 2-41 with south strip). ottawa 160.
+  vancouver 100 (181-190 × 17-26 complete). victoria 121 (181-190 × 17-26 +
+  190-193 × 17-23 band). Zero staged at wind-down of this arc.
+- **SEAM BUG FIXED (isomap/window.py)**: windows anchored on BOTH opposite
+  sides (e.g. a top+bottom+left slot like w198_35_201_38) mis-counted anchor
+  rows — n_anchor summed ALL full anchor rows, landing both seam bands mid-
+  window and pasting CANVAS (hazy render) over the whole new region. Symptom:
+  "shaded mask" over a committed window + all seam ratios >1. Now counts only
+  contiguous anchors on each side. If a commit ever looks hazy: it's the
+  pipeline, not the generation — un-commit (DELETE by batch_id + rm tiles) and
+  re-commit.
+- Vancouver open-water windows were NOT generated: filled by cloning committed
+  water tiles (match the neighbor tone — teal vs blue varies per batch!) with
+  Bayer-dither transition bands between tones. Terminal/ship content pasted
+  VERBATIM from the user's generation with only near-water pixels (<±18 of gen
+  water) swapped for base water — tight per-pixel masks + posterized render
+  look terrible, don't repeat (user rejected twice).
+- Misregistered object continuations (cruise-ship bow: gen redrew ships
+  shifted, ships also cross into rows outside the window) can't be pasted —
+  the REPAIR LOOP is the correct fix and produced a perfect bow.
+- Hub server: port 9091 now (user tunnels 8989→9091); must be
+  tools/debug_server.py — plain http.server has no /api/repair (✂ 404s).
+- tools/clean_spent_artifacts.py — sweeps infill/renders/style_refs of fully
+  committed windows; run when disk is tight (VM lives at ~85-95%).
+- REPO: code changes to push — window.py seam fix, debug_server.py (port arg +
+  /debug/ no-store), viewer rebuild, clean_spent_artifacts.py, .gitignore
+  (.claude/). Pyramids changed for all four cities.
+
 ## QA note (2026-08-12): structural-corr is content-sensitive
 
 Downward trend in commit scores (0.94 towers -> 0.77 residential) tracks

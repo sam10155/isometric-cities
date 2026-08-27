@@ -38,7 +38,9 @@ COST_PER_1K_CAD = 8.4495
 # per-API monthly caps; sessions are the primary (billable) unit
 DEFAULT_CAPS = {
     "map_tiles_session": 100,   # root.json fetches — the assumed-billable unit
-    "map_tiles": 100_000,       # raw requests — runaway backstop, not billing
+    "map_tiles": 200_000,       # raw requests — runaway backstop, not billing
+                                # (raised 2026-08-27 w/ user approval; session
+                                # billing verified, raw traffic is free)
 }
 DEFAULT_MONTHLY_CAP = 100_000  # fallback for unknown APIs
 
