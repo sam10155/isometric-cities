@@ -438,6 +438,43 @@ color normalization only if cross/within ratio exceeds ~1.5.
   /debug/ no-store), viewer rebuild, clean_spent_artifacts.py, .gitignore
   (.claude/). Pyramids changed for all four cities.
 
+## Session 2026-08-31: rectangles closed (Ottawa, Vancouver); Montreal south band
+
+- MAP STATE: toronto 1336. ottawa 316 (RECTANGLE 181-199 × 14-29 complete,
+  zero holes, + west band started: 178-180 × 14-17 committed). vancouver 208
+  (RECTANGLE 181-196 × 14-26 COMPLETE). victoria 193 (holes remain: 194-196 ×
+  18-19 and 194-196 × 24-26 — both windows STAGED on hub: victoria_w193_17_
+  196_20 slot + w193_23_196_26; user stopped staging for the day, commit these
+  first next session). montreal 91 (181-190 × 17-23 block + south band rows
+  24-26 done for cols 181-187; next window: 187,23-190,26 completes the band).
+- Ottawa SE corner (196,26-199,29): shore-only composite; water refilled with
+  per-row gradient extension so the river's southward darkening carries —
+  the tone step at row 26|27 matches the committed t196 column, reads natural.
+- MONTREAL WATER-PATTERN FIX (montreal_w181_23_184_26): gen faded anchor
+  dither into its own flat water via ugly 64px CHECKERBOARD blocks mid-window
+  (seam ratios don't catch mid-window artifacts — eyeball every mostly-water
+  commit). Fix script pattern (worked well): flattest blue 128px block from
+  NEARBY committed tiles (tone varies across the map — don't source far away),
+  two-way detrend (block - rowmean - colmean + 2*grand; the naive formula
+  black-screens), mirror-tile 256px for seamless wrap, index by global pixel
+  coords % 256 for cross-tile continuity; render-guided content mask (4px
+  chunky, dist ≥30 to NEAREST of MULTIPLE water refs — pier-shadow water is
+  much darker navy and needs its own ref — dilate 2 blocks) keeps gen art
+  verbatim. Same script re-runs idempotently (mask from render, not tiles).
+- Vancouver 193,23-196,26 (Brockton Pt): forced at 0.703 (¾ open water). Left
+  seam 1.79 was REAL: gen dropped a chopped bush blob + fleck slivers into
+  open water near the seam — spot-cleaned to local water color, kept the
+  intentional foam/shallow speckle band along the seawall + gen's lighthouse.
+- Un-stylized photoreal strip at gen right/bottom edge is the SACRIFICIAL
+  WATERMARK PAD (canvas 2304 vs window 2048) — commit crops it; not a defect.
+- Victoria 193,20-196,23: committed 0.738 with an INVENTED crescent building
+  wrapping the two real Songhees towers (user judged it good and chose to
+  keep — "looked better than its anchors"). Precedent: user may accept
+  aesthetic inventions in new territory; report, then defer.
+- STAGED at wind-down: victoria slot + band (above), montreal_w184_23_187_26
+  already committed (Old Port: ferris wheel, Clock Tower, marina — clean).
+  No other canvases staged.
+
 ## QA note (2026-08-12): structural-corr is content-sensitive
 
 Downward trend in commit scores (0.94 towers -> 0.77 residential) tracks

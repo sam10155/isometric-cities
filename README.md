@@ -4,7 +4,8 @@
 [Toronto](https://sam10155.github.io/isometric-cities/toronto/) ·
 [Ottawa](https://sam10155.github.io/isometric-cities/ottawa/) ·
 [Victoria](https://sam10155.github.io/isometric-cities/victoria/) ·
-[Vancouver](https://sam10155.github.io/isometric-cities/vancouver/)
+[Vancouver](https://sam10155.github.io/isometric-cities/vancouver/) ·
+[Montreal](https://sam10155.github.io/isometric-cities/montreal/)
 
 Generate isometric pixel-art maps of real cities — point the system at any city and get
 a SimCity-2000-style deep-zoom map. First target: **Toronto, Canada**.
@@ -25,36 +26,37 @@ project.
 
 ## Status
 
-Phase 0 + Phase 1 complete, style gate passed (2026-08-07). The full chain works:
-3D Tiles fetch (session-billed, cached) → offline isometric render → Nano Banana
-Pro pixel-art transfer. Approved style reference: `style_refs/q123_72_v1.png`;
-recipe in `docs/plan/style-recipe.md`. **Resume: `docs/plan/next-session.md`.**
+Five cities live (2026-09-01): **Toronto 1597 tiles** (162–204 × 2–44, incl.
+the full Port Lands), **Ottawa 532**, **Victoria 256**, **Vancouver 247**,
+**Montreal 169** — the four smaller cities are complete rectangles, all grown
+window-by-window via the 4×4-tile prepare/commit loop (render → pixel-art gen → seam QA → deep-zoom pyramid update). Style
+recipe: `docs/plan/style-recipe.md`. **Resume: `docs/plan/next-session.md`.**
 
 ```
 isomap/config.py    city config loader (cities/<name>/config.yaml)
 isomap/gridlib.py   WGS84 <-> city CRS <-> quadrant coordinate math
 isomap/tilelib.py   quadrant states, seam rules (R1-R3), seam-free planner
 isomap/store.py     SQLite quadrant state store
-isomap/apibudget.py Google API request counter + hard monthly cap (900)
-isomap/tiles3d.py   3D Tiles client: cache-first, budget-counted traversal
+isomap/apibudget.py Google API session counter + hard monthly caps
+isomap/tiles3d.py   3D Tiles client: cache-first, budgeted, parallel fetch
 isomap/render.py    software orthographic isometric renderer (numpy/PIL)
-isomap/testviz.py   visual test artifacts -> debug/tests/index.html
+isomap/window.py    prepare/commit loop: canvases, seam QA, force gates
+isomap/pyramid.py   deep-zoom (DZI) pyramid updates for the viewers
 isomap/cli.py       info / locate / plan / status / budget commands
+tools/debug_server.py  local hub: staged canvases, QA views, repair API
 ```
 
-API usage so far: 34/900 this month (`python -m isomap.cli budget`).
+Billing is session-based (root.json fetches); tile traffic rides free on the
+session — `python -m isomap.cli budget` shows both counters ($0 to date).
 
 Setup and use:
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'
-.venv/bin/python -m pytest              # 28 tests; view debug/tests/index.html
+.venv/bin/python -m pytest              # tests; view debug/tests/index.html
 .venv/bin/python -m isomap.cli info toronto
-.venv/bin/python -m isomap.cli plan toronto --pilot
+.venv/bin/python -m isomap.window prepare toronto 201 29 204 32
 ```
-
-Next: Phase 1 — Google 3D Tiles orthographic renderer + bounds app
-(see [docs/plan/toronto-adaptation.md](docs/plan/toronto-adaptation.md)).
 
 ## Pipeline at a glance
 

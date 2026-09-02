@@ -1,0 +1,41 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Isometric Montreal — pixel-art map</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #1a2733; }
+  #map { width: 100%; height: 100%; }
+  #hud { position: fixed; top: 10px; left: 10px; color: #cfe3f5;
+         font: 13px sans-serif; background: rgba(20,32,44,.8);
+         padding: 8px 12px; border-radius: 6px; pointer-events: none; }
+  #credit { position: fixed; bottom: 8px; left: 10px; color: #9db4c8;
+            font: 11px sans-serif; background: rgba(20,32,44,.6);
+            padding: 3px 8px; border-radius: 4px; }
+  #credit a { color: #8fd0ff; }
+</style>
+<div id="map"></div>
+<div id="hud">Isometric Montreal — drag to pan, scroll to zoom</div>
+<div id="credit">Pixel-art map generated from 3D data — map data &copy; Google ·
+inspired by <a href="https://isometric.nyc/">isometric.nyc</a></div>
+<script src="https://cdn.jsdelivr.net/npm/openseadragon@4.1/build/openseadragon/openseadragon.min.js"></script>
+<script>
+  const viewer = OpenSeadragon({
+    id: "map",
+    tileSources: "map.dzi",
+    prefixUrl: "https://cdn.jsdelivr.net/npm/openseadragon@4.1/build/openseadragon/images/",
+    showNavigator: true,
+    navigatorPosition: "BOTTOM_RIGHT",
+    minZoomImageRatio: 0.6,
+    maxZoomPixelRatio: 4,
+    visibilityRatio: 0.7,
+  });
+  viewer.addHandler("open", async () => {
+    try {
+      const meta = await (await fetch("map_meta.json?" + Date.now())).json();
+      const r = viewer.viewport.imageToViewportRectangle(
+        new OpenSeadragon.Rect(meta.x, meta.y, meta.w, meta.h));
+      viewer.viewport.fitBounds(r, true);
+      viewer.viewport.applyConstraints(true);
+    } catch (e) { console.warn("no map_meta.json", e); }
+  });
+</script>

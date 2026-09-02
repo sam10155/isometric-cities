@@ -26,9 +26,11 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import threading
 import urllib.error
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -201,7 +203,12 @@ class Tiles3dClient:
         self.max_requests = max_requests
         self.stats = FetchStats()
         self._session: str | None = None
-        self._retried_session = False
+        # fetch workers overlap request latency; counters/budget/session are
+        # serialized under locks so accounting is identical to a serial run
+        self.fetch_workers = 12
+        self._lock = threading.Lock()
+        self._refresh_lock = threading.Lock()
+        self._session_gen = 0
 
     # -- low-level fetch with cache + budget --
 
@@ -222,45 +229,52 @@ class Tiles3dClient:
     def _fetch(self, url: str, cache_key: str | None = None) -> bytes:
         cache = self._cache_path(url, cache_key)
         if cache.exists():
-            self.stats.cache_hits += 1
+            with self._lock:
+                self.stats.cache_hits += 1
             return cache.read_bytes()
 
-        if self.stats.network_requests >= self.max_requests:
-            raise RequestLimitReached(
-                f"per-run limit of {self.max_requests} network requests reached "
-                f"(stats: {self.stats})"
-            )
         # spend BEFORE the request; raises BudgetExceeded if it would breach.
         # Sessions (root.json fetches) are the assumed-billable unit; raw
-        # requests are tracked as a diagnostic backstop.
-        if cache_key == "json:root":
-            self.budget.spend(1, api="map_tiles_session")
-        self.budget.spend(1)
-        self.stats.network_requests += 1
+        # requests are tracked as a diagnostic backstop. The lock keeps
+        # counter accounting exact when fetch workers run concurrently.
+        with self._lock:
+            if self.stats.network_requests >= self.max_requests:
+                raise RequestLimitReached(
+                    f"per-run limit of {self.max_requests} network requests reached "
+                    f"(stats: {self.stats})"
+                )
+            if cache_key == "json:root":
+                self.budget.spend(1, api="map_tiles_session")
+            self.budget.spend(1)
+            self.stats.network_requests += 1
 
         req = urllib.request.Request(url, headers={"User-Agent": "isomap/0.1"})
         with urllib.request.urlopen(req, timeout=60) as resp:
             data = resp.read()
-        self.stats.bytes_fetched += len(data)
+        with self._lock:
+            self.stats.bytes_fetched += len(data)
         cache.write_bytes(data)
         return data
 
     def _fetch_uri(self, uri: str, cache_key: str | None = None) -> bytes:
         """Fetch a tile URI; on an expired/invalid session (the API answers
         400/401/403/404 depending on how the token failed), refresh the
-        session once and retry. Cache hits never touch the network."""
+        session once and retry. Cache hits never touch the network.
+
+        Session-generation counter: when many workers hit the expiry at once,
+        only the first refreshes (a refresh costs a billable session); the
+        rest just retry with the already-fresh token."""
+        gen = self._session_gen
         try:
             return self._fetch(self._url(uri), cache_key)
         except urllib.error.HTTPError as e:
-            if e.code not in (400, 401, 403, 404) or self._retried_session:
+            if e.code not in (400, 401, 403, 404):
                 raise
-            self._retried_session = True
-            self.refresh_session()
-            data = self._fetch(self._url(uri), cache_key)
-            # refresh fixed it -> allow future refreshes (sessions can expire
-            # again during multi-hour runs)
-            self._retried_session = False
-            return data
+            with self._refresh_lock:
+                if self._session_gen == gen:
+                    self.refresh_session()
+                    self._session_gen += 1
+            return self._fetch(self._url(uri), cache_key)
 
     def _url(self, uri: str) -> str:
         """Absolutize a tile URI and attach key + session."""
@@ -341,7 +355,9 @@ class Tiles3dClient:
                 continue
 
             if content_kind == ".glb" and (err <= target_error or not children):
-                self._fetch_uri(content_uri)
+                # collect now, fetch in parallel below: glbs are ~all of the
+                # request volume and independent, so overlapping their
+                # latency is the whole speedup
                 meshes.append(
                     MeshTile(
                         uri=content_uri,
@@ -354,5 +370,10 @@ class Tiles3dClient:
             stack.extend(
                 (child, f"{path}.{i}") for i, child in enumerate(children)
             )
+
+        with ThreadPoolExecutor(max_workers=self.fetch_workers) as pool:
+            # list() drains the iterator so the first worker error
+            # (RequestLimitReached/BudgetExceeded) propagates here
+            list(pool.map(lambda m: self._fetch_uri(m.uri), meshes))
 
         return meshes

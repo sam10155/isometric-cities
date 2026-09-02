@@ -97,7 +97,9 @@ class ApiBudget:
         self.caps = {**DEFAULT_CAPS, **(caps or {})}
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(self.db_path)
+        # check_same_thread=False: Tiles3dClient calls spend() from fetch
+        # workers, serialized under its own lock (no concurrent access)
+        self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self._conn.executescript(_SCHEMA)
         self._conn.commit()
 
