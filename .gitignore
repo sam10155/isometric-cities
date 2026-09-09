@@ -10,19 +10,17 @@
 __pycache__/
 *.egg-info/
 
-# local working state (the map is preserved in docs/map_files)
+# regenerable-via-API working state (fetch/render caches only; the canonical
+# map state — map_tiles, quadrants.sqlite, water.json, manifests — IS tracked
+# since 2026-09 so the project can resume from a bare checkout)
 cities/*/tile_cache/
-cities/*/map_tiles/
 cities/*/render_tiles/
-cities/*/manifests/
-cities/*/water.json
-cities/*/quadrants.sqlite
 cities/*/archive/
 cities/api_budget.sqlite
 
-# regenerable debug artifacts (keep the small hub/viewer html)
+# regenerable debug artifacts (keep the small hub/viewer html AND debug/infill:
+# staged canvases + prompts for the windows in flight when gen access paused)
 debug/renders/
-debug/infill/
 debug/repair/
 debug/map/
 debug/tests/*.png

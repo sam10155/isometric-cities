@@ -483,3 +483,32 @@ artistic liberty, lowering pixel correlation. Visual check confirmed the
 0.765 window is clean. Keep the 0.75 gate; for residential/tree windows
 lean on the visual once-over rather than the number. If a TOWER window ever
 scores <0.85, that IS an alarm.
+
+## Session 2026-09-04: PROJECT PAUSED — gen access lost; full-state archive
+
+- **Google AI Pro access is gone** (the Nano Banana web app used for
+  stylization). The grow loop is suspended. The Google MAPS API (3D Tiles)
+  key is separate and still works — prepares/renders remain possible.
+- MAP STATE at pause: toronto 1624 (162-204 × 2-44; bottom row, right edge,
+  SE corner, Port Lands column 162-164 down to qy 35 committed; NW block
+  165-167 × 5-22 + top strip 165-191 × 2-4 still open), ottawa 562
+  (172-199 × 14-32 rectangle + new left column 169-171 up to qy 23),
+  vancouver 259 (+ Centerm container-terminal window 178,23), victoria 268
+  (+ left column 178-180 start), montreal 169 (13×13 rectangle).
+- **STAGED, AWAITING GEN** (canvases + prompts in debug/infill/, tracked in
+  git as of this session): ottawa w169_20_172_23, montreal w175_23_178_26
+  (hard window: open St. Lawrence + Lachine rapids; prompt already
+  strengthened against invention), vancouver w178_20_181_23, victoria
+  w178_23_181_26. Older already-committed canvases also remain in
+  debug/infill; clean_spent_artifacts.py removes them.
+- **ARCHIVE POLICY CHANGE**: .gitignore now TRACKS the canonical state —
+  cities/*/map_tiles (irreplaceable without gen access), quadrants.sqlite,
+  water.json, manifests/, debug/infill/. Still ignored: tile_cache,
+  render_tiles (re-fetchable via Maps API), style_refs, .env, .venv.
+- TO RESUME: restore a stylization path (AI Pro, Gemini API — see memory
+  gemini-api-city-policy: API use was ON HOLD by user decision — or a
+  fine-tuned model per the original NYC pipeline plan), then: hub up
+  (tools/debug_server.py 9091), gen the staged canvases, continue the
+  window loop. All QA/force precedents in this file still apply.
+- Parallel tile fetching (ThreadPoolExecutor(12) in tiles3d.py) landed
+  2026-09-01: prepares run 26-63s instead of 5-8 min.

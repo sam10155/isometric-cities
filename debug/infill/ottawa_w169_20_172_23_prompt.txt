@@ -1,0 +1,14 @@
+This image is a section of an isometric pixel-art map of Ottawa that is partially complete. Part of the image is already finished pixel art in the style of classic late-90s city-building games like SimCity 2000; the rest is a photorealistic isometric 3D render that has not been stylized yet.
+
+Complete the map: transform ONLY the photorealistic region into pixel art that seamlessly continues the existing pixel-art region.
+
+Requirements:
+- Do NOT change the already-stylized pixel-art region in any way
+- Match its palette, pixel density, dithering style, lighting and level of detail exactly
+- Keep every building, road, and rail line in the photorealistic region in exactly the same position
+- The boundary between the existing and new pixel art must be invisible
+- No text, no UI elements, no borders; fill the entire frame edge to edge
+
+CRITICAL: Some buildings are cut by the boundary between the finished pixel-art region and the photorealistic region. Those partial buildings MUST continue with EXACTLY the same colors, materials, window patterns, and shading as their already-finished part. Do not reinterpret any surface that starts in the finished region.
+
+Water: the lake/harbour water in this image must be calm, flat pixel-art water in one consistent blue with subtle 2x2 dither shading — no noise, no random texture, no invented boats or objects that are not in the input image.
